@@ -10,6 +10,9 @@ books = {}
 members = {}
 loans = {}
 reservations = {}
+from app.models.policy import Policy
+policy = Policy()
+
 
 _next_ids = {"book": 1, "member": 1, "loan": 1, "reservation": 1}
 
@@ -27,3 +30,4 @@ def reset():
     loans.clear()
     reservations.clear()
     _next_ids.update(book=1, member=1, loan=1, reservation=1)
+    policy.max_loans_per_member = Policy().max_loans_per_member
