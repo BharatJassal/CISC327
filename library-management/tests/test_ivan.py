@@ -106,3 +106,119 @@ def test_delete_book_removes_it(client):
  
 def test_delete_unknown_book_returns_404(client):
     assert client.delete("/books/999").status_code == 404
+
+
+# ---------------- Check out and return ----------------
+ 
+def test_checkout_creates_loan_and_lowers_available_copies(client):
+    """F1: staff check out a book to a member."""
+    book = make_book(client, copies=2)
+    member = make_member(client)
+ 
+    response = checkout(client, book["id"], member["id"])
+    assert response.status_code == 201
+    loan = response.get_json()
+    assert loan["book_id"] == book["id"]
+    assert loan["member_id"] == member["id"]
+    assert loan["return_date"] is None
+ 
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
+ 
+ 
+def test_checkout_due_date_is_21_days_after_checkout(client):
+    """F34: due date is 21 days after checkout. Expected to FAIL: the app uses 14 days."""
+    from datetime import date
+    book = make_book(client)
+    member = make_member(client)
+ 
+    loan = checkout(client, book["id"], member["id"]).get_json()
+    days = (date.fromisoformat(loan["due_date"]) - date.fromisoformat(loan["loan_date"])).days
+    assert days == 21
+ 
+ 
+def test_checkout_unknown_book_returns_404(client):
+    member = make_member(client)
+    response = checkout(client, 999, member["id"])
+    assert response.status_code == 404
+    assert client.get("/loans").get_json() == []
+ 
+ 
+def test_checkout_refused_when_no_copies_left(client):
+    """F5: available copies must stay accurate. Expected to FAIL: count goes to -1."""
+    book = make_book(client, copies=1)
+    first = make_member(client)
+    second = make_member(client, name="Bo", email="bo@example.com")
+ 
+    assert checkout(client, book["id"], first["id"]).status_code == 201
+    response = checkout(client, book["id"], second["id"])
+ 
+    assert response.status_code >= 400
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 0
+ 
+ 
+def test_checkout_refused_for_unknown_member(client):
+    """F1: checkout uses the member's card, so the member must exist. Expected to FAIL."""
+    book = make_book(client)
+ 
+    response = checkout(client, book["id"], 999)
+ 
+    assert response.status_code >= 400
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
+ 
+ 
+def test_member_cannot_have_more_than_10_loans(client):
+    """F7: limit of 10 items per member. Expected to FAIL: the 11th checkout is allowed."""
+    book = make_book(client, copies=20)
+    member = make_member(client)
+ 
+    for _ in range(10):
+        assert checkout(client, book["id"], member["id"]).status_code == 201
+    eleventh = checkout(client, book["id"], member["id"])
+ 
+    assert eleventh.status_code >= 400
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 10
+ 
+ 
+def test_return_restores_copy_and_records_return_date(client):
+    """F6 and F11: availability updates on return, and the return date is the scan date."""
+    from datetime import date
+    book = make_book(client)
+    member = make_member(client)
+    loan = checkout(client, book["id"], member["id"]).get_json()
+ 
+    response = client.put(f"/loans/{loan['id']}/return")
+    assert response.status_code == 200
+    assert response.get_json()["return_date"] == date.today().isoformat()
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
+ 
+ 
+def test_returning_twice_is_rejected_and_count_not_doubled(client):
+    book = make_book(client)
+    member = make_member(client)
+    loan = checkout(client, book["id"], member["id"]).get_json()
+    client.put(f"/loans/{loan['id']}/return")
+ 
+    second = client.put(f"/loans/{loan['id']}/return")
+    assert second.status_code == 400
+    assert second.get_json()["error"] == "Loan already returned"
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
+ 
+ 
+def test_return_unknown_loan_returns_404(client):
+    assert client.put("/loans/999/return").status_code == 404
+ 
+ 
+def test_returned_copy_can_be_checked_out_again(client):
+    """F6: once returned, the copy is available to the next member."""
+    book = make_book(client, copies=1)
+    first = make_member(client)
+    second = make_member(client, name="Bo", email="bo@example.com")
+ 
+    loan = checkout(client, book["id"], first["id"]).get_json()
+    client.put(f"/loans/{loan['id']}/return")
+    response = checkout(client, book["id"], second["id"])
+ 
+    assert response.status_code == 201
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 0
+ 
+ 
