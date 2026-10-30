@@ -222,3 +222,38 @@ def test_returned_copy_can_be_checked_out_again(client):
     assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 0
  
  
+# ---------------- Loan lookup ----------------
+ 
+def test_lookup_loans_by_book_id(client):
+    book1 = make_book(client, isbn="1")
+    book2 = make_book(client, title="Dune", isbn="2")
+    member = make_member(client)
+    checkout(client, book1["id"], member["id"])
+    checkout(client, book2["id"], member["id"])
+ 
+    results = client.get(f"/loans?book_id={book2['id']}").get_json()
+    assert len(results) == 1
+    assert results[0]["book_id"] == book2["id"]
+ 
+ 
+def test_lookup_loans_by_member_id_shows_only_that_member(client):
+    """F16: a member sees only their own loans. Expected to FAIL: the filter compares book_id."""
+    book1 = make_book(client, isbn="1")
+    book2 = make_book(client, title="Dune", isbn="2", copies=2)
+    ann = make_member(client)
+    bo = make_member(client, name="Bo", email="bo@example.com")
+    checkout(client, book2["id"], ann["id"])
+    checkout(client, book1["id"], bo["id"])
+ 
+    results = client.get(f"/loans?member_id={ann['id']}").get_json()
+    assert len(results) == 1
+    assert all(l["member_id"] == ann["id"] for l in results)
+ 
+ 
+def test_lookup_with_no_filter_lists_all_loans(client):
+    book = make_book(client, copies=3)
+    member = make_member(client)
+    for _ in range(3):
+        checkout(client, book["id"], member["id"])
+ 
+    assert len(client.get("/loans").get_json()) == 3
