@@ -51,9 +51,11 @@ app working without a REST client, and calls the same in-memory store.
 | GET | `/members/<id>` | Get one member |
 | PUT | `/members/<id>` | Update a member |
 | DELETE | `/members/<id>` | Delete a member |
-| POST | `/loans` | Check out a book (`book_id`, `member_id`) |
+| POST | `/loans` | Check out a book (`book_id`, `member_id`). Refused with 400 if the member already has the maximum number of books out |
 | PUT | `/loans/<id>/return` | Return a loaned book |
 | GET | `/loans?member_id=&book_id=` | Look up loans |
+| GET | `/policy` | View library policy (`max_loans_per_member`, default 10) |
+| PUT | `/policy` | Change the loan limit (`max_loans_per_member`, whole number of at least 1) |
 
 ## Tests
 

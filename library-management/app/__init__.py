@@ -9,11 +9,13 @@ def create_app():
     from app.routes.loans import loans_bp
     from app.routes.reservations import reservations_bp
     from app.routes.views import views_bp
+    from app.routes.policy import policy_bp
 
     app.register_blueprint(books_bp)
     app.register_blueprint(members_bp)
     app.register_blueprint(loans_bp)
     app.register_blueprint(reservations_bp)
     app.register_blueprint(views_bp)
+    app.register_blueprint(policy_bp)
 
     return app

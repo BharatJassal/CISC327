@@ -257,3 +257,62 @@ def test_lookup_with_no_filter_lists_all_loans(client):
         checkout(client, book["id"], member["id"])
  
     assert len(client.get("/loans").get_json()) == 3
+
+
+
+# ---------------- Enhancement: F7 loan limit ----------------
+
+def test_policy_defaults_to_10_loans(client):
+    """F7: the default limit is 10."""
+    response = client.get("/policy")
+    assert response.status_code == 200
+    assert response.get_json()["max_loans_per_member"] == 10
+
+
+def test_returning_a_book_frees_a_slot(client):
+    """F7: the limit counts only books still checked out."""
+    book = make_book(client, copies=20)
+    member = make_member(client)
+    loans = [checkout(client, book["id"], member["id"]).get_json() for _ in range(10)]
+    assert checkout(client, book["id"], member["id"]).status_code == 400
+
+    client.put(f"/loans/{loans[0]['id']}/return")
+    response = checkout(client, book["id"], member["id"])
+
+    assert response.status_code == 201
+    assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 10
+
+
+def test_limit_is_per_member(client):
+    """F7: one member hitting the limit does not block another member."""
+    book = make_book(client, copies=20)
+    ann = make_member(client)
+    bo = make_member(client, name="Bo", email="bo@example.com")
+    for _ in range(10):
+        checkout(client, book["id"], ann["id"])
+
+    assert checkout(client, book["id"], ann["id"]).status_code == 400
+    assert checkout(client, book["id"], bo["id"]).status_code == 201
+
+
+def test_staff_can_change_the_limit(client):
+    """F7: the limit is configurable through PUT /policy, and checkout follows the new value."""
+    book = make_book(client, copies=5)
+    member = make_member(client)
+
+    response = client.put("/policy", json={"max_loans_per_member": 2})
+    assert response.status_code == 200
+    assert client.get("/policy").get_json()["max_loans_per_member"] == 2
+
+    assert checkout(client, book["id"], member["id"]).status_code == 201
+    assert checkout(client, book["id"], member["id"]).status_code == 201
+    third = checkout(client, book["id"], member["id"])
+    assert third.status_code == 400
+    assert "2 books" in third.get_json()["error"]
+
+
+def test_invalid_limit_is_rejected(client):
+    """F7: the limit must be a whole number of at least 1, and a bad value leaves it unchanged."""
+    for bad in (0, -3, "ten", None):
+        assert client.put("/policy", json={"max_loans_per_member": bad}).status_code == 400
+    assert client.get("/policy").get_json()["max_loans_per_member"] == 10
