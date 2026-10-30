@@ -29,6 +29,12 @@ def checkout_book():
     if book is None:
         return jsonify({"error": "Book not found"}), 404
 
+    active = [l for l in store.loans.values()
+              if l.member_id == data["member_id"] and l.return_date is None]
+    limit = store.policy.max_loans_per_member
+    if len(active) >= limit:
+        return jsonify({"error": f"Member already has {limit} books checked out"}), 400
+
     book.available_copies -= 1
 
     loan_id = store.next_id("loan")
