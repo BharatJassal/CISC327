@@ -10,6 +10,7 @@ def create_app():
     from app.routes.reservations import reservations_bp
     from app.routes.views import views_bp
     from app.routes.policy import policy_bp
+    from app.routes.late_fees import late_fees_bp
 
     app.register_blueprint(books_bp)
     app.register_blueprint(members_bp)
@@ -17,5 +18,6 @@ def create_app():
     app.register_blueprint(reservations_bp)
     app.register_blueprint(views_bp)
     app.register_blueprint(policy_bp)
+    app.register_blueprint(late_fees_bp)
 
     return app
