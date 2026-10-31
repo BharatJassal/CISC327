@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from app import store
 from app.models.loan import Loan, LOAN_PERIOD_DAYS
 
-FINE_PER_DAY = 0.25  # dollars charged per day overdue
+#FINE_PER_DAY = 0.25  # dollars charged per day overdue
 
 loans_bp = Blueprint("loans", __name__, url_prefix="/loans")
 
@@ -81,11 +81,8 @@ def get_fine(loan_id):
     if loan is None:
         return jsonify({"error": "Loan not found"}), 404
 
-    # BUG: always uses date.today() as the end date, even when the book has
-    # already been returned. A returned loan should use loan.return_date so
-    # the fine is fixed at the moment of return — but that line is missing here.
-    end_date = date.today()
-    days_overdue = max(0, (end_date - loan.due_date).days)
-    fine_amount = round(days_overdue * FINE_PER_DAY, 2)
+    end_date = loan.return_date or date.today()
+    days_overdue = max(0, (end_date - loan.due_date).days) 
+    fine_amount = store.late_fee_policy.fine_for(days_overdue)
 
-    return jsonify({"loan_id": loan_id, "fine_amount": fine_amount})
+    return jsonify({"loan_id": loan_id, "days_overdue": days_overdue, "fine_amount": fine_amount})

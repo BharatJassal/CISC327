@@ -223,3 +223,79 @@ def test_ui_checkout_and_return_update_available_copies(client):
     client.post(f"/ui/loans/{loan_id}/return")
     assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
     assert client.get("/loans").get_json()[0]["return_date"] == date.today().isoformat()
+
+# enhancement
+
+def make_overdue_loan(client, days_late):
+    """Check out a book and move its due date back so it is days_late overdue."""
+    from datetime import date, timedelta
+    from app import store
+    book = make_book(client)
+    member = make_member(client)
+    loan = checkout(client, book["id"], member["id"]).get_json()
+    store.loans[loan["id"]].due_date = date.today() - timedelta(days=days_late)
+    return loan["id"]
+
+
+def test_late_fee_policy_defaults_match_old_behaviour(client):
+    """F27: Rules are stored as settings, and the defaults keep the old $0.25/day."""
+    response = client.get("/policy/late-fees")
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "fines_enabled": True, "grace_period_days": 0, "daily_rate": 0.25, "max_fine": None,
+    }
+
+
+def test_changing_daily_rate_changes_the_fine(client):
+    """F28: After PUT the new rate is saved and used for the next fine no code change."""
+    loan_id = make_overdue_loan(client, days_late=4)
+    assert client.get(f"/loans/{loan_id}/fine").get_json()["fine_amount"] == 1.0
+
+    response = client.put("/policy/late-fees", json={"daily_rate": 0.5})
+    assert response.status_code == 200
+    assert client.get("/policy/late-fees").get_json()["daily_rate"] == 0.5
+
+    fine = client.get(f"/loans/{loan_id}/fine").get_json()
+    assert fine["days_overdue"] == 4
+    assert fine["fine_amount"] == 2.0
+
+
+def test_grace_period_boundary(client):
+    """F27 boundary With a 2 day grace period, 2 days late is free and 3 days late costs 1 day."""
+    client.put("/policy/late-fees", json={"grace_period_days": 2})
+    two_days = make_overdue_loan(client, days_late=2)
+    three_days = make_overdue_loan(client, days_late=3)
+
+    assert client.get(f"/loans/{two_days}/fine").get_json()["fine_amount"] == 0
+    assert client.get(f"/loans/{three_days}/fine").get_json()["fine_amount"] == 0.25
+
+
+def test_max_fine_caps_amount_and_fines_can_be_turned_off(client):
+    """F27 Librarian's $10 cap and the Patron's no fines option are both settings.
+    100 days late would be $25 the cap holds it at $10, and turning fines off makes it $0."""
+    loan_id = make_overdue_loan(client, days_late=100)
+
+    client.put("/policy/late-fees", json={"max_fine": 10})
+    assert client.get(f"/loans/{loan_id}/fine").get_json()["fine_amount"] == 10
+
+    client.put("/policy/late-fees", json={"fines_enabled": False})
+    assert client.get(f"/loans/{loan_id}/fine").get_json()["fine_amount"] == 0
+
+
+def test_invalid_late_fee_update_is_rejected_and_nothing_changes(client):
+    """F28 error cases: Bad values get 400 and the saved settings stay the same."""
+    before = client.get("/policy/late-fees").get_json()
+
+    bad_requests = [
+        {"daily_rate": -1},
+        {"grace_period_days": 1.5},
+        {"fines_enabled": "no"},
+        {"max_fine": "ten"},
+        {"daily_rate": 0.5, "late_fee": 3},
+        {},
+    ]
+    for body in bad_requests:
+        response = client.put("/policy/late-fees", json=body)
+        assert response.status_code == 400
+
+    assert client.get("/policy/late-fees").get_json() == before

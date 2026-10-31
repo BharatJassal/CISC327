@@ -56,6 +56,9 @@ app working without a REST client, and calls the same in-memory store.
 | GET | `/loans?member_id=&book_id=` | Look up loans |
 | GET | `/policy` | View library policy (`max_loans_per_member`, default 10) |
 | PUT | `/policy` | Change the loan limit (`max_loans_per_member`, whole number of at least 1) |
+| GET | `/loans/<id>/fine` | Fine owed on a loan (`loan_id`, `days_overdue`, `fine_amount`), calculated from the late fee policy. A returned loan is charged up to its return date |
+| GET | `/policy/late-fees` | View the late fee rules (`fines_enabled`, `grace_period_days`, `daily_rate`, `max_fine`; defaults true, 0, 0.25, null = no cap) |
+| PUT | `/policy/late-fees` | Change any of the late fee rules. An invalid value returns 400 and nothing is changed |
 
 ## Tests
 
