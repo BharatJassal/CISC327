@@ -12,7 +12,8 @@ loans = {}
 reservations = {}
 from app.models.policy import Policy
 policy = Policy()
-
+from app.models.late_fee_policy import LateFeePolicy
+late_fee_policy = LateFeePolicy()
 
 _next_ids = {"book": 1, "member": 1, "loan": 1, "reservation": 1}
 
@@ -31,3 +32,4 @@ def reset():
     reservations.clear()
     _next_ids.update(book=1, member=1, loan=1, reservation=1)
     policy.max_loans_per_member = Policy().max_loans_per_member
+    late_fee_policy.reset()
