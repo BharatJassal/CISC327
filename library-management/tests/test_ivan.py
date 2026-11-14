@@ -6,8 +6,10 @@ Description: Tests for the features assigned to Ivan in Table B:
              return, and look up loans. Each test points to the
              requirement (F-ID) it checks.
 """
- 
- 
+
+import pytest
+
+
 def make_book(client, title="Clean Code", author="Robert Martin", isbn="111", copies=1):
     return client.post("/books", json={
         "title": title, "author": author, "isbn": isbn, "total_copies": copies,
@@ -66,6 +68,7 @@ def test_search_by_author(client):
     assert results[0]["title"] == "Dune"
  
  
+@pytest.mark.xfail(reason="Defect (F9): search checks only title and author, not isbn/barcode")
 def test_search_by_barcode_finds_book(client):
     """F9: look up a book by barcode (isbn). Expected to FAIL: search only checks title and author."""
     make_book(client, title="Dune", isbn="978-0441")
@@ -125,6 +128,7 @@ def test_checkout_creates_loan_and_lowers_available_copies(client):
     assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 1
  
  
+@pytest.mark.xfail(reason="Defect (F34): due date is 14 days after checkout, requirement says 21")
 def test_checkout_due_date_is_21_days_after_checkout(client):
     """F34: due date is 21 days after checkout. Expected to FAIL: the app uses 14 days."""
     from datetime import date
@@ -143,6 +147,7 @@ def test_checkout_unknown_book_returns_404(client):
     assert client.get("/loans").get_json() == []
  
  
+@pytest.mark.xfail(reason="Defect (F5): checkout succeeds (201) with no copies left and count goes to -1")
 def test_checkout_refused_when_no_copies_left(client):
     """F5: available copies must stay accurate. Expected to FAIL: count goes to -1."""
     book = make_book(client, copies=1)
@@ -156,6 +161,7 @@ def test_checkout_refused_when_no_copies_left(client):
     assert client.get(f"/books/{book['id']}").get_json()["available_copies"] == 0
  
  
+@pytest.mark.xfail(reason="Defect (F1): checkout succeeds (201) for a member that does not exist")
 def test_checkout_refused_for_unknown_member(client):
     """F1: checkout uses the member's card, so the member must exist. Expected to FAIL."""
     book = make_book(client)
@@ -236,6 +242,7 @@ def test_lookup_loans_by_book_id(client):
     assert results[0]["book_id"] == book2["id"]
  
  
+@pytest.mark.xfail(reason="Defect (F16): member_id filter compares book_id, so other members' loans are returned")
 def test_lookup_loans_by_member_id_shows_only_that_member(client):
     """F16: a member sees only their own loans. Expected to FAIL: the filter compares book_id."""
     book1 = make_book(client, isbn="1")
