@@ -14,3 +14,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
