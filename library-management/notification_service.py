@@ -6,6 +6,10 @@ Place this file beside run.py in your selected project folder, then use
 This module does not send real emails or make network calls. Successful
 notifications are stored in memory and disappear when Python exits. It is
 a teaching simulator for a single process, not a production delivery system.
+
+Group 9 customizations (Library Management):
+    - Every recorded subject starts with SUBJECT_PREFIX ("[City Library] ").
+    - A recipient without an "@" is rejected (returns False, nothing recorded).
 The application decides when to notify someone and how to handle failure.
 
 Examples of recipients in the supplied templates:
@@ -20,6 +24,8 @@ Use clear_notifications before and after tests that use the real simulator.
 """
 
 _notifications = []
+
+SUBJECT_PREFIX = "[City Library] "
 
 
 def is_service_available() -> bool:
@@ -38,11 +44,14 @@ def send_notification(recipient: str, subject: str, message: str) -> bool:
     is empty/whitespace-only, or the simulated service is unavailable.
     A recipient is a nonempty string (for example, an email or staff label);
     this simulator does not validate email addresses or actual deliverability.
-    Valid values are stored exactly as supplied. Repeated sends are recorded
+    Valid values are stored as supplied, with SUBJECT_PREFIX added to the subject. Repeated sends are recorded
     separately. True means recorded by the simulator, not delivered by email.
     """
     if not all(isinstance(value, str) and value.strip()
                for value in (recipient, subject, message)):
+        return False
+
+    if "@" not in recipient:
         return False
 
     if not is_service_available():
@@ -50,7 +59,7 @@ def send_notification(recipient: str, subject: str, message: str) -> bool:
 
     _notifications.append({
         "recipient": recipient,
-        "subject": subject,
+        "subject": SUBJECT_PREFIX + subject,
         "message": message,
     })
     return True
