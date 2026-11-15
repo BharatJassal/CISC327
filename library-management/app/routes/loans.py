@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 
 from app import store
 from app.models.loan import Loan, LOAN_PERIOD_DAYS
+from notification_service import send_notification
 
 #FINE_PER_DAY = 0.25  # dollars charged per day overdue
 
@@ -86,3 +87,39 @@ def get_fine(loan_id):
     fine_amount = store.late_fee_policy.fine_for(days_overdue)
 
     return jsonify({"loan_id": loan_id, "days_overdue": days_overdue, "fine_amount": fine_amount})
+
+
+@loans_bp.route("/<int:loan_id>/remind", methods=["POST"])
+def send_overdue_reminder(loan_id):
+    """Email the member a reminder, but only if the loan is overdue and not returned.
+
+    A failed notification does not fail the request: it returns 200 with
+    "notified": false and the loan's last_reminder_date stays unchanged.
+    """
+    loan = store.loans.get(loan_id)
+    if loan is None:
+        return jsonify({"error": "Loan not found"}), 404
+
+    days_overdue = (date.today() - loan.due_date).days
+    if loan.return_date is not None or days_overdue <= 0:
+        return jsonify({"loan_id": loan_id, "notified": False,
+                        "reason": "Loan is not overdue"}), 200
+
+    member = store.members.get(loan.member_id)
+    if member is None:
+        return jsonify({"error": "Member not found"}), 404
+
+    book = store.books.get(loan.book_id)
+    title = book.title if book else f"Book #{loan.book_id}"
+    sent = send_notification(
+        member.email,
+        "Overdue book reminder",
+        f"Hi {member.name}, '{title}' was due on {loan.due_date.isoformat()} "
+        f"and is {days_overdue} day(s) overdue. Please return it.",
+    )
+    if sent:
+        loan.last_reminder_date = date.today()
+
+    return jsonify({"loan_id": loan_id, "notified": sent,
+                    "days_overdue": days_overdue,
+                    "last_reminder_date": loan.to_dict()["last_reminder_date"]}), 200

@@ -11,6 +11,7 @@ class Loan:
         self.loan_date = loan_date or date.today()
         self.due_date = due_date
         self.return_date = return_date
+        self.last_reminder_date = None
 
     def to_dict(self):
         return {
@@ -20,6 +21,8 @@ class Loan:
             "loan_date": self.loan_date.isoformat(),
             "due_date": self.due_date.isoformat(),
             "return_date": self.return_date.isoformat() if self.return_date else None,
+            "last_reminder_date": (self.last_reminder_date.isoformat()
+                                   if self.last_reminder_date else None),
         }
 
     @staticmethod
