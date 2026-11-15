@@ -3,7 +3,7 @@ File: tests/test_bharat.py
 Author: Bharat Jassal (20463821), group 9
 Description: Tests for the features assigned to Bharat in Table B. Members, renew, fine, reservations and ui.
 """
-
+import pytest
 def make_book(client, title="Clean Code", author="Robert Martin", isbn="111", copies=1):
     return client.post("/books", json={
         "title": title, "author": author, "isbn": isbn, "total_copies": copies,
@@ -33,6 +33,7 @@ def test_add_member_saves_fields_and_get_returns_same_data(client):
     assert saved["email"] == "john.doe@example.com"
     assert saved["membership_date"] == date.today().isoformat()
 
+@pytest.mark.xfail(reason="Defect (F10): member registration drops the address field")
 def test_add_member_keeps_address(client):
     """F10: registration records name, address and contact info.
     Expected to Fail: the address sent is dropped."""
@@ -52,6 +53,7 @@ def test_each_member_gets_unique_id_and_is_listed(client):
     assert john["id"] != jane["id"]
     assert [m["name"] for m in members] == ["John Doe", "Jane Doe"]
 
+@pytest.mark.xfail(reason="Defect (F36): GET /members ignores the search parameter and returns every member")
 def test_look_up_member_by_name(client):
     """F36: staff look up member by name.
     Expected to Fail: Search parameter is ignored and every member is then returned."""
@@ -107,6 +109,7 @@ def test_renew_extends_due_date_and_is_saved(client):
     saved = client.get(f"/loans?book_id={book['id']}").get_json()[0]
     assert saved["due_date"] == new_due
 
+@pytest.mark.xfail(reason="Defect (F18): renew ignores reservations held by another member")
 def test_renew_refused_when_another_member_reserved_the_book(client):
     """F18: no renewal allowed while another member has the book reserved.
     Expected to Fail: renew ignores reservations."""
